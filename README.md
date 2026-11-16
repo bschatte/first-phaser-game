@@ -19,3 +19,7 @@ Once GitHub Pages is on, the game lives at https://bschatte.github.io/first-phas
 - **Computer (Chrome or Edge):** click the install icon at the right end of the address bar.
 
 It works offline after the first visit. When the game changes, bump `VERSION` in `sw.js` so installed copies pick up the update.
+
+## Galaxy Guess
+
+`galaxy-guess/index.html` is a Star Wars forehead guessing game for phones, played at https://bschatte.github.io/first-phaser-game/galaxy-guess/. Hold the phone sideways on your forehead, tip it down for a correct guess and up to pass. Tapping the right or left side of the screen does the same.

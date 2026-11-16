@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Galaxy Guess</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Nunito:wght@600;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#070a18; --panel:#121a36; --line:#2a376b; --ink:#eef2ff; --dim:#9aa6d6;
+    --gold:#ffd84a; --green:#22c36b; --orange:#ff8a2b; --blue:#4fb6ff;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font-family:Nunito,system-ui,sans-serif;overflow:hidden;user-select:none;-webkit-user-select:none}
+  canvas#stars{position:fixed;inset:0;width:100%;height:100%;z-index:0}
+  .screen{position:fixed;inset:0;z-index:1;display:none;overflow-y:auto}
+  .screen.on{display:block}
+  .wrap{max-width:560px;margin:0 auto;padding:22px 18px 40px}
+  h1{font-family:Orbitron,sans-serif;font-weight:800;color:var(--gold);text-align:center;
+    font-size:clamp(34px,11vw,58px);line-height:1;margin:10px 0 4px;letter-spacing:2px;
+    text-shadow:0 0 22px rgba(255,216,74,.35)}
+  .sub{text-align:center;color:var(--dim);margin:0 0 20px;font-size:15px}
+  h2{font-family:Orbitron,sans-serif;font-size:13px;letter-spacing:2px;color:var(--blue);
+    text-transform:uppercase;margin:20px 0 10px}
+  .decks{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .deck{background:var(--panel);border:2px solid var(--line);border-radius:16px;padding:12px 12px 11px;
+    color:var(--ink);text-align:left;font:inherit;cursor:pointer}
+  .deck b{display:block;font-size:17px;font-weight:800}
+  .deck span{display:block;font-size:12.5px;color:var(--dim);margin-top:2px}
+  .deck.sel{border-color:var(--gold);background:#1c2550;box-shadow:0 0 0 3px rgba(255,216,74,.18)}
+  .deck.sel b{color:var(--gold)}
+  .times{display:flex;gap:10px}
+  .time{flex:1;background:var(--panel);border:2px solid var(--line);border-radius:14px;padding:11px 0;
+    color:var(--ink);font:inherit;font-weight:800;font-size:17px;cursor:pointer}
+  .time.sel{border-color:var(--gold);color:var(--gold);background:#1c2550}
+  .go{display:block;width:100%;margin-top:22px;padding:17px;border:0;border-radius:18px;cursor:pointer;
+    background:var(--gold);color:#1a1400;font-family:Orbitron,sans-serif;font-weight:800;font-size:22px;
+    letter-spacing:2px;box-shadow:0 6px 0 #b58f00}
+  .go:active{transform:translateY(4px);box-shadow:0 2px 0 #b58f00}
+  .ghost{display:block;width:100%;margin-top:12px;padding:14px;border:2px solid var(--line);border-radius:16px;
+    background:transparent;color:var(--ink);font:inherit;font-weight:800;font-size:16px;cursor:pointer}
+  .how{background:var(--panel);border:2px solid var(--line);border-radius:16px;padding:12px 16px;
+    color:var(--dim);font-size:14.5px;line-height:1.45}
+  .how li{margin:5px 0}
+  .how b{color:var(--ink)}
+
+  /* play stage: always landscape. Rotated by script when the phone reports portrait. */
+  #stage{position:fixed;left:50%;top:50%;z-index:2;display:none;overflow:hidden;
+    transform-origin:center;background:#0b1130;transition:background .12s}
+  #stage.on{display:block}
+  #stage.good{background:var(--green)}
+  #stage.skip{background:var(--orange)}
+  .hud{position:absolute;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:center;
+    padding:3% 4%;font-family:Orbitron,sans-serif;font-weight:800;pointer-events:none}
+  #clock{font-size:1.5em;color:var(--gold)}
+  #clock.low{color:#ff5a5a}
+  #tally{font-size:1em;color:var(--dim)}
+  #stage.good .hud *, #stage.skip .hud *{color:#fff}
+  #word{position:absolute;left:6%;right:6%;top:50%;transform:translateY(-50%);text-align:center;
+    font-weight:800;line-height:1.05;color:#fff;pointer-events:none;overflow-wrap:break-word}
+  #tag{position:absolute;left:0;right:0;bottom:17%;text-align:center;color:var(--dim);
+    font-family:Orbitron,sans-serif;letter-spacing:3px;font-size:.6em;text-transform:uppercase;pointer-events:none}
+  .zone{position:absolute;top:0;bottom:0;width:50%;border:0;background:transparent;cursor:pointer;padding:0}
+  #zPass{left:0} #zGot{right:0}
+  .zone span{position:absolute;bottom:4%;font-family:Orbitron,sans-serif;font-weight:800;font-size:.75em;
+    letter-spacing:2px;padding:.45em .9em;border-radius:999px;color:#fff}
+  #zPass span{left:8%;background:rgba(255,138,43,.28);border:2px solid var(--orange)}
+  #zGot span{right:8%;background:rgba(34,195,107,.28);border:2px solid var(--green)}
+  #stage.ready .zone, #stage.good .zone span, #stage.skip .zone span{visibility:hidden}
+  #quit{position:absolute;left:50%;bottom:4%;transform:translateX(-50%);background:transparent;
+    border:0;color:var(--dim);font:inherit;font-size:.55em;padding:.6em 1em;cursor:pointer;z-index:3}
+
+  .score{font-family:Orbitron,sans-serif;font-weight:800;text-align:center;font-size:84px;color:var(--gold);
+    line-height:1;margin:6px 0 0}
+  .rank{text-align:center;font-weight:800;font-size:20px;margin:6px 0 4px}
+  .list{background:var(--panel);border:2px solid var(--line);border-radius:16px;padding:6px 14px;margin-top:10px}
+  .list div{padding:8px 0;border-bottom:1px solid var(--line);font-weight:800;font-size:16px;display:flex;gap:10px}
+  .list div:last-child{border-bottom:0}
+  .list i{font-style:normal;font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:1px;
+    padding:3px 7px;border-radius:6px;align-self:center;flex:none;width:52px;text-align:center}
+  .list .g i{background:rgba(34,195,107,.2);color:var(--green)}
+  .list .p i{background:rgba(255,138,43,.2);color:var(--orange)}
+  .list .p{color:var(--dim)}
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+
+<section class="screen on" id="home">
+  <div class="wrap">
+    <h1>GALAXY<br>GUESS</h1>
+    <p class="sub">A forehead guessing game from a galaxy far, far away</p>
+
+    <h2>Pick a deck</h2>
+    <div class="decks" id="decks"></div>
+
+    <h2>Round length</h2>
+    <div class="times" id="times"></div>
+
+    <button class="go" id="start">START</button>
+
+    <h2>How to play</h2>
+    <ol class="how">
+      <li>Turn the phone <b>sideways</b> and hold it on your forehead, screen facing your team.</li>
+      <li>Your team gives clues, or acts it out, <b>without saying the word</b>.</li>
+      <li id="howCtl">Guessed it? A teammate taps the <b>right side</b>. Stuck? Tap the <b>left side</b> to pass.</li>
+      <li>Get as many as you can before the timer runs out.</li>
+    </ol>
+  </div>
+</section>
+
+<div id="stage">
+  <button class="zone" id="zPass" aria-label="Pass"><span>PASS</span></button>
+  <button class="zone" id="zGot" aria-label="Got it"><span>GOT IT</span></button>
+  <div class="hud"><div id="tally"></div><div id="clock"></div></div>
+  <div id="word"></div>
+  <div id="tag"></div>
+  <button id="quit">end round</button>
+</div>
+
+<section class="screen" id="done">
+  <div class="wrap">
+    <h2 style="text-align:center;margin-top:8px">Round over</h2>
+    <div class="score" id="score">0</div>
+    <div class="rank" id="rank"></div>
+    <div class="list" id="list"></div>
+    <button class="go" id="again">PLAY AGAIN</button>
+    <button class="ghost" id="back">Change deck</button>
+  </div>
+</section>
+
+<script>
+const DECKS = {
+  young: { name:"Younglings", note:"Easy ones for little Jedi", words:[
+    "Yoda","Darth Vader","R2-D2","Chewbacca","Grogu","Lightsaber","Stormtrooper","Princess Leia",
+    "Luke Skywalker","BB-8","Ewok","Death Star","Han Solo","C-3PO","Millennium Falcon","Porg","Jawa",
+    "X-wing","The Force","Jedi","Droid","Blaster","Rey","Kylo Ren","Boba Fett","Jabba the Hutt","Wookiee",
+    "Spaceship","Obi-Wan Kenobi","The Mandalorian","AT-AT","TIE Fighter","Tatooine","Hoth","Helmet",
+    "Hologram","Jetpack","Rebel pilot","The Emperor","Landspeeder"]},
+  chars: { name:"Heroes & Villains", note:"Characters from every era", words:[
+    "Luke Skywalker","Princess Leia","Han Solo","Chewbacca","Darth Vader","Yoda","Obi-Wan Kenobi","R2-D2",
+    "C-3PO","Emperor Palpatine","Boba Fett","Jabba the Hutt","Lando Calrissian","Anakin Skywalker",
+    "Padme Amidala","Qui-Gon Jinn","Darth Maul","Mace Windu","Jar Jar Binks","Count Dooku","General Grievous",
+    "Ahsoka Tano","Captain Rex","Rey","Finn","Poe Dameron","Kylo Ren","BB-8","The Mandalorian","Grogu",
+    "Admiral Ackbar","Wicket the Ewok","Greedo","Jango Fett","Cad Bane","Hera Syndulla","Ezra Bridger",
+    "Chopper","Grand Admiral Thrawn","K-2SO","Jyn Erso","Maz Kanata","Captain Phasma","Sabine Wren",
+    "Bo-Katan","Nien Nunb","Watto","Sebulba","Grand Moff Tarkin","Kanan Jarrus","Cassian Andor","Rose Tico",
+    "Uncle Owen","Bib Fortuna","Max Rebo"]},
+  beasts: { name:"Creatures & Droids", note:"Aliens, beasts and bots", words:[
+    "Wookiee","Ewok","Jawa","Tusken Raider","Bantha","Tauntaun","Wampa","Rancor","Sarlacc","Porg","Dewback",
+    "Gungan","Hutt","Mynock","Loth-cat","Battle Droid","Droideka","Probe Droid","Astromech Droid",
+    "Protocol Droid","Blurrg","Krayt Dragon","Acklay","Reek","Nexu","Space Slug","Monkey-lizard","Fathier",
+    "Crystal Fox","Purrgil","Mudhorn","Twi'lek","Rodian","Mon Calamari","Medical Droid","Mouse Droid",
+    "Gonk Droid","Varactyl","Dianoga","Ugnaught","Clone Trooper","Stormtrooper","Scout Trooper",
+    "Royal Guard","Bounty Hunter"]},
+  places: { name:"Planets & Places", note:"Worlds, bases and hideouts", words:[
+    "Tatooine","Hoth","Endor","Dagobah","Naboo","Coruscant","Death Star","Cloud City","Mos Eisley Cantina",
+    "Jabba's Palace","Kashyyyk","Mustafar","Geonosis","Kamino","Jakku","Alderaan","Bespin","Yavin 4",
+    "Jedi Temple","Starkiller Base","Echo Base","Scarif","Mandalore","Lothal","Ahch-To","Crait","Exegol",
+    "Utapau","Dathomir","Trash compactor","Sarlacc pit","Carbon freezing chamber","Asteroid field",
+    "Ewok village","Moisture farm","Podrace arena","Rebel base","Yoda's hut","Emperor's throne room",
+    "Docking bay"]},
+  gear: { name:"Ships & Gear", note:"Starships, speeders and gadgets", words:[
+    "Millennium Falcon","X-wing","TIE Fighter","Star Destroyer","AT-AT","AT-ST","Lightsaber","Blaster",
+    "Landspeeder","Speeder bike","Podracer","Snowspeeder","Boba Fett's ship","Y-wing","A-wing",
+    "Jedi Starfighter","Sandcrawler","Escape pod","Holocron","Kyber crystal","Thermal detonator","Jetpack",
+    "Hologram","Carbonite","Bowcaster","Double-bladed lightsaber","Darksaber","Beskar armor","Razor Crest",
+    "Tractor beam","Hyperdrive","Jedi robes","Stormtrooper helmet","Blue milk","Training remote",
+    "Republic Gunship","Imperial Shuttle","Super Star Destroyer","Tow cable","Macrobinoculars",
+    "Vader's TIE Fighter","Rebel medal","Dejarik holochess","Restraining bolt","Ion cannon"]},
+  act: { name:"Act It Out", note:"No talking, just moves and sounds", words:[
+    "Swing a lightsaber","Lift a rock with the Force","Breathe like Darth Vader","Roar like a Wookiee",
+    "Beep like R2-D2","Walk like C-3PO","Fly an X-wing","Ride a speeder bike","Jedi mind trick",
+    "Frozen in carbonite","Force push","Talk like Yoda","Stormtrooper missing every shot","Podracing",
+    "Ride a tauntaun","Meditate like a Jedi","Fix a broken spaceship","Jump to hyperspace",
+    "Stuck in the trash compactor","Blow up the Death Star","Dance like an Ewok","Waddle like a porg",
+    "Jawa selling droids","Roll like BB-8","Trip an AT-AT","Deflect blaster bolts","Send a hologram message",
+    "Sneak past stormtroopers","Slither like Jabba","Lightsaber duel","Grogu eating a snack",
+    "Put on a helmet","Battle droid marching","Swing across a chasm","Train with Yoda on your back",
+    "Fire a blaster","Float in zero gravity","Chased by a rancor","Fall into the Sarlacc pit","Fly with a jetpack"]}
+};
+DECKS.all = { name:"Whole Galaxy", note:"Everything mixed together",
+  words:[...new Set(["chars","beasts","places","gear"].flatMap(k=>DECKS[k].words))] };
+const ORDER = ["young","chars","beasts","places","gear","act","all"];
+const TIMES = [60,90,120];
+
+const $ = id => document.getElementById(id);
+let deckKey = "young", roundLen = 60;
+try{ deckKey = localStorage.getItem("gg_deck") || deckKey; roundLen = +localStorage.getItem("gg_time") || roundLen; }catch(e){}
+if(!DECKS[deckKey]) deckKey = "young";
+if(!TIMES.includes(roundLen)) roundLen = 60;
+
+/* ---------- home ---------- */
+function drawHome(){
+  $("decks").innerHTML = ORDER.map(k=>
+    `<button class="deck${k===deckKey?" sel":""}" data-k="${k}"><b>${DECKS[k].name}</b><span>${DECKS[k].note}</span></button>`).join("");
+  $("times").innerHTML = TIMES.map(t=>
+    `<button class="time${t===roundLen?" sel":""}" data-t="${t}">${t} sec</button>`).join("");
+}
+$("decks").onclick = e => { const b = e.target.closest(".deck"); if(!b) return;
+  deckKey = b.dataset.k; try{localStorage.setItem("gg_deck",deckKey)}catch(e){} drawHome(); };
+$("times").onclick = e => { const b = e.target.closest(".time"); if(!b) return;
+  roundLen = +b.dataset.t; try{localStorage.setItem("gg_time",roundLen)}catch(e){} drawHome(); };
+drawHome();
+
+function show(id){
+  for(const s of ["home","done"]) $(s).classList.toggle("on", s===id);
+  $("stage").classList.toggle("on", id==="stage");
+  if(id==="stage") fitStage();
+}
+
+/* ---------- sound ---------- */
+let ac = null;
+function tone(freq, dur, type="sine", when=0, vol=.18){
+  if(!ac) return;
+  try{
+    const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime + when;
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.001, t+dur);
+    o.connect(g).connect(ac.destination); o.start(t); o.stop(t+dur+.02);
+  }catch(e){}
+}
+const sfx = {
+  good(){ tone(660,.12,"triangle"); tone(990,.2,"triangle",.1); },
+  pass(){ tone(260,.18,"sawtooth",0,.1); },
+  tick(){ tone(880,.06,"square",0,.08); },
+  count(){ tone(520,.12,"square",0,.1); },
+  go(){ tone(1040,.35,"square",0,.12); },
+  end(){ tone(330,.25,"sawtooth",0,.14); tone(220,.5,"sawtooth",.22,.14); }
+};
+
+/* ---------- stage sizing: force landscape ---------- */
+let SW = 0, SH = 0;
+function fitStage(){
+  const w = innerWidth, h = innerHeight, st = $("stage").style, port = h > w;
+  SW = port ? h : w; SH = port ? w : h;
+  st.width = SW+"px"; st.height = SH+"px";
+  st.transform = `translate(-50%,-50%)${port?" rotate(90deg)":""}`;
+  st.fontSize = (SH*0.075)+"px";
+  sizeWord();
+}
+function sizeWord(){
+  const el = $("word"), len = Math.max(el.textContent.length, 3);
+  let fs = Math.min(SH*0.30, SW*1.55/len);
+  fs = Math.max(fs, SH*0.11);
+  el.style.fontSize = fs+"px";
+}
+addEventListener("resize", fitStage);
+
+/* ---------- round ---------- */
+const used = {};
+let queue = [], current = "", results = [], left = 0, timer = null, locked = true, playing = false, wake = null;
+
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function nextWord(){
+  if(!queue.length){
+    const seen = used[deckKey] || (used[deckKey] = new Set());
+    let pool = DECKS[deckKey].words.filter(w=>!seen.has(w));
+    if(pool.length < 5){ seen.clear(); pool = DECKS[deckKey].words.filter(w=>w!==current); }
+    queue = shuffle(pool.slice());
+  }
+  current = queue.pop(); used[deckKey].add(current);
+  $("word").textContent = current; sizeWord();
+}
+function hud(){
+  $("clock").textContent = left;
+  $("clock").classList.toggle("low", left<=10);
+  $("tally").textContent = results.filter(r=>r.ok).length + " correct";
+}
+function setTag(t){ $("tag").textContent = t; }
+
+async function startRound(){
+  if(!ac){ try{ ac = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+  if(ac && ac.state==="suspended"){ try{ ac.resume(); }catch(e){} }
+  tiltInit();
+  try{ if(navigator.wakeLock) wake = await navigator.wakeLock.request("screen"); }catch(e){}
+  results = []; queue = []; left = roundLen; locked = true; playing = false;
+  const st = $("stage"); st.className = "on ready"; show("stage");
+  $("tally").textContent = DECKS[deckKey].name; $("clock").textContent = "";
+  setTag("on your forehead");
+  let n = 3;
+  $("word").textContent = "Place on forehead"; sizeWord();
+  clearInterval(timer);
+  timer = setInterval(()=>{
+    if(n>0){ $("word").textContent = n; sizeWord(); sfx.count(); n--; return; }
+    clearInterval(timer); sfx.go(); beginPlay();
+  }, 1000);
+}
+function beginPlay(){
+  $("stage").className = "on"; playing = true; locked = false; neutral = false;
+  setTag(DECKS[deckKey].name); nextWord(); hud();
+  timer = setInterval(()=>{
+    left--; hud();
+    if(left<=5 && left>0) sfx.tick();
+    if(left<=0) endRound();
+  }, 1000);
+}
+function answer(ok){
+  if(!playing || locked) return;
+  locked = true;
+  results.push({w:current, ok});
+  const st = $("stage");
+  st.classList.add(ok?"good":"skip");
+  $("word").textContent = ok ? "CORRECT!" : "PASS"; sizeWord(); setTag(current);
+  ok ? sfx.good() : sfx.pass(); hud();
+  setTimeout(()=>{
+    if(!playing) return;
+    st.classList.remove("good","skip"); setTag(DECKS[deckKey].name);
+    nextWord(); locked = false;
+  }, 650);
+}
+function endRound(){
+  clearInterval(timer); playing = false; locked = true; sfx.end();
+  try{ wake && wake.release(); }catch(e){} wake = null;
+  const got = results.filter(r=>r.ok).length;
+  $("score").textContent = got;
+  $("rank").textContent = got>=12 ? "Jedi Master!" : got>=8 ? "Jedi Knight" : got>=4 ? "Padawan" : got>=1 ? "Youngling" : "The Force will be with you next time";
+  $("list").innerHTML = results.length
+    ? results.map(r=>`<div class="${r.ok?"g":"p"}"><i>${r.ok?"GOT IT":"PASS"}</i>${r.w}</div>`).join("")
+    : `<div class="p">No cards played</div>`;
+  $("stage").className = ""; show("done"); $("done").scrollTop = 0;
+}
+
+$("start").onclick = startRound;
+$("again").onclick = startRound;
+$("back").onclick = ()=>show("home");
+$("zGot").onclick = ()=>answer(true);
+$("zPass").onclick = ()=>answer(false);
+$("quit").onclick = e => { e.stopPropagation(); endRound(); };
+addEventListener("keydown", e=>{
+  if(e.key==="ArrowRight"||e.key==="ArrowDown") answer(true);
+  if(e.key==="ArrowLeft"||e.key==="ArrowUp") answer(false);
+});
+
+if(window.self === window.top && window.DeviceOrientationEvent)
+  $("howCtl").innerHTML = "Guessed it? <b>Tip the phone down</b>. Stuck? <b>Tip it up</b> to pass. Tapping the right or left side works too.";
+
+/* ---------- tilt (only where the browser allows motion sensors) ---------- */
+let tiltOn = false, neutral = false;
+function tiltInit(){
+  if(tiltOn || !window.DeviceOrientationEvent) return;
+  const hook = ()=>{ tiltOn = true; addEventListener("deviceorientation", onTilt); };
+  try{
+    if(typeof DeviceOrientationEvent.requestPermission === "function")
+      DeviceOrientationEvent.requestPermission().then(r=>{ if(r==="granted") hook(); }).catch(()=>{});
+    else hook();
+  }catch(e){}
+}
+function onTilt(e){
+  if(e.beta==null || e.gamma==null) return;
+  // How much the screen faces the sky (+1) or the floor (-1); 0 means upright on the forehead.
+  const D = Math.PI/180, nz = Math.cos(e.beta*D) * Math.cos(e.gamma*D);
+  if(Math.abs(nz) < 0.3){ neutral = true; return; }
+  if(Math.abs(nz) > 0.6 && neutral && playing && !locked){
+    neutral = false;
+    answer(nz < 0);                                // tipped down = correct, tipped up = pass
+  }
+}
+
+/* ---------- starfield ---------- */
+(function(){
+  const c = $("stars"), x = c.getContext("2d"); let S = [];
+  function size(){
+    const d = Math.min(devicePixelRatio||1, 2);
+    c.width = innerWidth*d; c.height = innerHeight*d;
+    S = Array.from({length:140}, ()=>({x:Math.random()*c.width, y:Math.random()*c.height,
+      r:(Math.random()*1.3+.3)*d, p:Math.random()*6.28, s:Math.random()*.02+.005}));
+  }
+  function frame(){
+    x.clearRect(0,0,c.width,c.height);
+    for(const s of S){ s.p += s.s;
+      x.globalAlpha = .35 + .65*Math.abs(Math.sin(s.p));
+      x.fillStyle = "#dfe7ff"; x.beginPath(); x.arc(s.x,s.y,s.r,0,6.28); x.fill(); }
+    requestAnimationFrame(frame);
+  }
+  addEventListener("resize", size); size(); frame();
+})();
+</script>
+</body>
+</html>
